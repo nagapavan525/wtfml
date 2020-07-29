@@ -1,8 +1,13 @@
+"""
+__author__: Abhishek Thakur
+"""
+
 import torch
 import numpy as np
 
 try:
     import torch_xla.core.xla_model as xm
+
     _xla_available = True
 except ImportError:
     _xla_available = False
@@ -22,6 +27,11 @@ class EarlyStopping:
         else:
             self.val_score = -np.Inf
 
+        if self.tpu and not _xla_available:
+            raise Exception(
+                "You want to use TPUs but you dont have pytorch_xla installed"
+            )
+
     def __call__(self, epoch_score, model, model_path):
         if self.mode == "min":
             score = -1.0 * epoch_score
@@ -33,11 +43,18 @@ class EarlyStopping:
             self.save_checkpoint(epoch_score, model, model_path)
         elif score < self.best_score + self.delta:
             self.counter += 1
-            print(
-                "EarlyStopping counter: {} out of {}".format(
-                    self.counter, self.patience
+            if self.tpu:
+                xm.master_print(
+                    "EarlyStopping counter: {} out of {}".format(
+                        self.counter, self.patience
+                    )
                 )
-            )
+            else:
+                print(
+                    "EarlyStopping counter: {} out of {}".format(
+                        self.counter, self.patience
+                    )
+                )
             if self.counter >= self.patience:
                 self.early_stop = True
         else:

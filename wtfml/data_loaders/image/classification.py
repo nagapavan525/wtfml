@@ -1,3 +1,7 @@
+"""
+__author__: Abhishek Thakur
+"""
+
 import torch
 
 import numpy as np
@@ -17,6 +21,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class ClassificationDataset:
     def __init__(self, image_paths, targets, resize, augmentations=None):
+        """
+        :param image_paths: list of paths to images
+        :param targets: numpy array
+        :param resize: tuple or None
+        :param augmentations: albumentations augmentations
+        """
         self.image_paths = image_paths
         self.targets = targets
         self.resize = resize
@@ -45,6 +55,12 @@ class ClassificationDataset:
 
 class ClassificationDataLoader:
     def __init__(self, image_paths, targets, resize, augmentations=None):
+        """
+        :param image_paths: list of paths to images
+        :param targets: numpy array
+        :param resize: tuple or None
+        :param augmentations: albumentations augmentations
+        """
         self.image_paths = image_paths
         self.targets = targets
         self.resize = resize
@@ -53,17 +69,24 @@ class ClassificationDataLoader:
             image_paths=self.image_paths,
             targets=self.targets,
             resize=self.resize,
-            augmentations=self.augmentations
+            augmentations=self.augmentations,
         )
-    
+
     def fetch(self, batch_size, num_workers, drop_last=False, shuffle=True, tpu=False):
+        """
+        :param batch_size: batch size
+        :param num_workers: number of processes to use
+        :param drop_last: drop the last batch?
+        :param shuffle: True/False
+        :param tpu: True/False, to use tpu or not
+        """
         sampler = None
-        if tpu == True:
+        if tpu:
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self.dataset,
                 num_replicas=xm.xrt_world_size(),
                 rank=xm.get_ordinal(),
-                shuffle=shuffle
+                shuffle=shuffle,
             )
 
         data_loader = torch.utils.data.DataLoader(
@@ -71,6 +94,6 @@ class ClassificationDataLoader:
             batch_size=batch_size,
             sampler=sampler,
             drop_last=drop_last,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
         return data_loader

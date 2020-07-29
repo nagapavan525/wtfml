@@ -18,7 +18,8 @@ from wtfml.data_loaders.image import ClassificationDataLoader
 
 
 class DenseCrossEntropy(nn.Module):
-    # Taken from: https://www.kaggle.com/pestipeti/plant-pathology-2020-pytorch
+    # Taken from:
+    # https://www.kaggle.com/pestipeti/plant-pathology-2020-pytorch
     def __init__(self):
         super(DenseCrossEntropy, self).__init__()
 
@@ -35,7 +36,8 @@ class DenseCrossEntropy(nn.Module):
 
 
 class Model(nn.Module):
-    # Modified from: https://www.kaggle.com/pestipeti/plant-pathology-2020-pytorch
+    # Modified from:
+    # https://www.kaggle.com/pestipeti/plant-pathology-2020-pytorch
     def __init__(self):
         super().__init__()
         self.base_model = torchvision.models.resnet18(pretrained=True)
@@ -92,7 +94,7 @@ if __name__ == "__main__":
         [albumentations.Normalize(mean, std, max_pixel_value=255.0, always_apply=True)]
     )
 
-    train_images, valid_images, train_targets, valid_targets = train_test_split(
+    (train_images, valid_images, train_targets, valid_targets) = train_test_split(
         images, targets
     )
 
@@ -101,44 +103,23 @@ if __name__ == "__main__":
         targets=train_targets,
         resize=(128, 128),
         augmentations=aug,
-    ).fetch(
-        batch_size=16, 
-        num_workers=4, 
-        drop_last=False, 
-        shuffle=True, 
-        tpu=False
-    )
+    ).fetch(batch_size=16, num_workers=4, drop_last=False, shuffle=True, tpu=False)
 
     valid_loader = ClassificationDataLoader(
         image_paths=valid_images,
         targets=valid_targets,
         resize=(128, 128),
         augmentations=aug,
-    ).fetch(
-        batch_size=16, 
-        num_workers=4, 
-        drop_last=False, 
-        shuffle=False, 
-        tpu=False
-    )
+    ).fetch(batch_size=16, num_workers=4, drop_last=False, shuffle=False, tpu=False)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.6)
+    eng = Engine(model, optimizer, device=args.device)
 
     for epoch in range(args.epochs):
-        train_loss = Engine.train(train_loader, model, optimizer, device=args.device)
-        predictions, valid_loss = Engine.evaluate(
-            valid_loader, model, device=args.device
-        )
-        predictions = np.vstack((predictions))
-        roc_1 = metrics.roc_auc_score(valid_targets[:, 0], predictions[:, 0])
-        roc_2 = metrics.roc_auc_score(valid_targets[:, 1], predictions[:, 1])
-        roc_3 = metrics.roc_auc_score(valid_targets[:, 2], predictions[:, 2])
-        roc_4 = metrics.roc_auc_score(valid_targets[:, 3], predictions[:, 3])
-        mean_roc = (roc_1 + roc_2 + roc_3 + roc_4) / 4
-        print(
-            f"Epoch={epoch}, Train Loss={train_loss} Valid Loss={valid_loss}, Mean ROC AUC={mean_roc}"
-        )
+        train_loss = eng.train(train_loader)
+        valid_loss = eng.evaluate(valid_loader)
+        print(f"{epoch}, Train Loss={train_loss} Valid Loss={valid_loss}")
 
     test_df = pd.read_csv(os.path.join(args.data_path, "test.csv"))
     images = test_df.image_id.values.tolist()
@@ -151,15 +132,10 @@ if __name__ == "__main__":
 
     test_loader = ClassificationDataLoader(
         image_paths=images, targets=targets, resize=(128, 128), augmentations=aug
-    ).fetch(
-        batch_size=16, 
-        num_workers=4, 
-        drop_last=False, 
-        shuffle=False, 
-        tpu=False
-    )
+    ).fetch(batch_size=16, num_workers=4, drop_last=False, shuffle=False, tpu=False)
 
-    predictions = Engine.predict(test_loader, model, device=args.device)
+    eng = Engine(model, optimizer, device=args.device)
+    predictions = eng.predict(test_loader)
     predictions = np.vstack((predictions))
 
     sample = pd.read_csv(os.path.join(args.data_path, "sample_submission.csv"))
